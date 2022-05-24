@@ -1,0 +1,23 @@
+begin_data
+	input /data1/gwm17/10B3He/May2022/calibrated/runs_53_89.root
+	output /data1/gwm17/10B3He/May2022/histograms/calHistograms_53_89_newRecon.root
+end_data
+begin_reconstructor
+	begin_focalplane
+		B 8.759
+		theta 15.0
+		begin_fpcal
+			78.5352
+			0.038
+		end_fpcal
+	end_focalplane
+	begin_target
+		thickness 74.0
+		begin_elements
+			5 1
+		end_elements
+	end_target
+end_reconstructor
+begin_cuts
+	ede_alphas /data1/gwm17/10B3He/May2022/cuts/edeAlphas.root scintE cathodeE
+end_cuts

@@ -2,8 +2,10 @@
 *.so
 *.sublime-project
 *.sublime-workspace
+*.code-workspace
 *.cxx
 *.pcm
 SabreRecon
+build/
 
 !.gitignore

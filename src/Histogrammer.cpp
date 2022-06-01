@@ -1,9 +1,11 @@
 #include "Histogrammer.h"
 #include "CalDict/DataStructs.h"
+#include <iostream>
 #include <fstream>
 #include <TH1.h>
 #include <TH2.h>
 #include <TFile.h>
+#include <TTree.h>
 
 
 namespace SabreRecon {
@@ -43,7 +45,11 @@ namespace SabreRecon {
 		{
 			input>>junk>>m_inputData;
 			input>>junk>>m_outputData;
+			input>>junk>>m_beamKE;
 			input>>junk;
+			std::cout<<"Input datafile: "<<m_inputData<<std::endl;
+			std::cout<<"Output datafile: "<<m_outputData<<std::endl;
+			std::cout<<"Beam Kinetic Energy (MeV): "<<m_beamKE<<std::endl;
 		}
 		else
 		{
@@ -61,23 +67,31 @@ namespace SabreRecon {
 					input>>junk>>B;
 					input>>junk>>theta;
 					input>>junk;
+					std::cout<<"Found Focal Plane Detector with B(kG): "<<B<<" angle(deg): "<<theta<<std::endl;
 					if(junk == "begin_fpcal")
 					{
+						std::cout<<"FP calibration parameters given: ";
 						while(input>>junk)
 						{
 							if(junk == "end_fpcal")
 								break;
 							else
+							{
 								fpCal.push_back(std::stod(junk));
+								std::cout<<"a"<<fpCal.size()-1<<": "<<fpCal[fpCal.size()-1]<<" ";
+							}
 						}
+						std::cout<<std::endl;
 					}
 				}
 				else if(junk == "begin_target")
 				{
 					input>>junk>>thickness;
 					input>>junk;
+					std::cout<<"Found a target with thickness: "<<thickness<<" ug/cm^2"<<std::endl;
 					if(junk == "begin_elements")
 					{
+						std::cout<<"Target elements given: ";
 						while(input>>junk)
 						{
 							if(junk == "end_elements")
@@ -87,11 +101,13 @@ namespace SabreRecon {
 								targ_z.push_back(std::stoi(junk));
 								input>>junk;
 								targ_s.push_back(std::stoi(junk));
+								std::cout<<"e"<<targ_s.size()-1<<": ("<<targ_z[targ_z.size()-1]<<","<<targ_s[targ_z.size()-1]<<") ";
 							}
 						}
+						std::cout<<std::endl;
 					}
 				}
-				else if(junk == "end_fpcal")
+				else if(junk == "end_focalplane")
 					continue;
 				else if(junk == "end_target")
 					continue;
@@ -114,21 +130,26 @@ namespace SabreRecon {
 					input>>this_cut.xparam;
 					input>>this_cut.yparam;
 					cuts.push_back(this_cut);
+					std::cout<<"Added cut "<<this_cut.cutname<<" with file "<<this_cut.filename
+							 <<" with xpar "<<this_cut.xparam<<" ypar "<<this_cut.yparam<<std::endl;
 				}
 			}
 		}
 
 		//init resources
+		std::cout<<"Initializing resources..."<<std::endl;
 		Target target(targ_z, targ_s, thickness);
 		m_recon.Init(target, theta, B, fpCal);
 		m_cuts.InitCuts(cuts);
 		m_cuts.InitEvent(m_eventPtr);
 
+		if(m_cuts.IsValid())
+			m_isValid = true;
 	}
 
 	void Histogrammer::FillHistogram1D(const Histogram1DParams& params, double value)
 	{
-		auto h = std::static_pointer_cast<TH1>(m_histoMap[params.name]);
+		std::shared_ptr<TH1> h = std::static_pointer_cast<TH1>(m_histoMap[params.name]);
 		if(h)
 			h->Fill(value);
 		else
@@ -141,7 +162,7 @@ namespace SabreRecon {
 
 	void Histogrammer::FillHistogram2D(const Histogram2DParams& params, double valueX, double valueY)
 	{
-		auto h = std::static_pointer_cast<TH2>(m_histoMap[params.name]);
+		std::shared_ptr<TH1> h = std::static_pointer_cast<TH2>(m_histoMap[params.name]);
 		if(h)
 			h->Fill(valueX, valueY);
 		else
@@ -155,6 +176,103 @@ namespace SabreRecon {
 
 	void Histogrammer::Run()
 	{
+		if(!m_isValid)
+		{
+			std::cerr<<"ERR -- Resources not initialized properly at Histogrammer::Run()."<<std::endl;
+			return;
+		}
 
+		TFile* input = TFile::Open(m_inputData.c_str(), "READ");
+		if(!input->IsOpen())
+		{
+			std::cerr<<"ERR -- Unable to open input data file "<<m_inputData<<" at Histogrammer::Run()"<<std::endl;
+			return;
+		}
+
+		TTree* tree = (TTree*) input->Get("CalTree");
+		if(tree == nullptr)
+		{
+			std::cerr<<"ERR -- No tree named CalTree found in input data file "<<m_inputData<<" at Histogrammer::Run()"<<std::endl;
+			return;
+		}
+		tree->SetBranchAddress("event", &m_eventPtr);
+
+		TFile* output = TFile::Open(m_outputData.c_str(), "RECREATE");
+		if(!output->IsOpen())
+		{
+			std::cerr<<"ERR -- Unable to open output data file "<<m_outputData<<" at Histogrammer::Run()"<<std::endl;
+			input->Close();
+			return;
+		}
+
+		uint64_t nevents = tree->GetEntries();
+		float flush_frac = 0.01f;
+		uint64_t count = 0, flush_count = 0, flush_val = nevents*flush_frac;
+
+		//Analysis results data
+		ReconResult recon5Li, recon7Be, recon8Be, recon14N;
+		TVector3 sabreCoords;
+
+		for(uint64_t i=0; i<nevents; i++)
+		{
+			tree->GetEntry(i);
+			count++;
+			if(count == flush_val)
+			{
+				count=0;
+				flush_count++;
+				std::cout<<"\rPercent of data processed: "<<flush_count*flush_frac*100<<"%"<<std::flush;
+			}
+
+			//Only analyze data that passes cuts, has sabre, and passes a weak threshold requirement
+			if(m_cuts.IsInside() && !m_eventPtr->sabre.empty() && m_eventPtr->sabre[0].ringE > s_weakSabreThreshold)
+			{
+				recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{2,4}});
+				recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{1,1}});
+				recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{1,2}});
+				recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{6,12},{2,3},{2,4},{1,1}});
+				sabreCoords = m_recon.GetSabreCoordinates(m_eventPtr->sabre[0]);
+
+				FillHistogram1D({"xavg","xavg_gated;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				FillHistogram2D({"scintE_cathodeE","scintE_cathodeE;scintE;cathodeE",512,0,4096,512,0,4096},
+								m_eventPtr->scintE, m_eventPtr->cathodeE);
+				FillHistogram2D({"xavg_theta","xavg_theta;xavg;theta",600,-300.0,300.0,500,0.0,1.5}, m_eventPtr->xavg, m_eventPtr->theta);
+
+				FillHistogram1D({"ex_5Li", "ex_5Li;E_x(MeV);counts",2000,0.0,20.0}, recon5Li.excitation);
+				FillHistogram1D({"ex_7Be", "ex_7Be;E_x(MeV);counts",2000,-10.0,10.0}, recon7Be.excitation);
+				FillHistogram1D({"ex_8Be", "ex_8Be;E_x(MeV);counts",2000,0.0,20.0}, recon8Be.excitation);
+				FillHistogram1D({"ex_14N", "ex_14N;E_x(MeV);counts",2000,-10.0,10.0}, recon14N.excitation);
+				FillHistogram2D({"ex_14N_7Be","ex_14N_7Be;E_x 14N;E_x 7Be",500,-10.0,10.0,500,-10.,10.0}, recon14N.excitation,
+								recon7Be.excitation);
+				FillHistogram2D({"sabreTheta_sabreE","sabreTheta_sabreE;#theta (deg); E(MeV)",180,0,180,400,0,20.0},
+								sabreCoords.Theta()*s_rad2deg, m_eventPtr->sabre[0].ringE);
+				FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},
+								m_eventPtr->xavg, m_eventPtr->sabre[0].ringE);
+
+				//Gate on reconstr. excitation structures; overlaping cases are possible!
+				if(recon5Li.excitation > -1.5 && recon5Li.excitation < 1.5)
+				{
+					FillHistogram1D({"xavg_gated5Ligs", "xavg_gated5Ligs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				}
+				if(recon8Be.excitation > -0.1 && recon8Be.excitation < 0.1)
+				{
+					FillHistogram1D({"xavg_gated8Begs", "xavg_gated8Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				}
+				if(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.1)
+				{
+					FillHistogram1D({"xavg_gated7Begs", "xavg_gated7Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				}
+				if(recon14N.excitation > -0.1 && recon14N.excitation < 0.1)
+				{
+					FillHistogram1D({"xavg_gated14Ngs", "xavg_gated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				}
+			}
+		}
+		std::cout<<std::endl;
+		input->Close();
+		output->cd();
+		for(auto& gram : m_histoMap)
+			gram.second->Write(gram.second->GetName(), TObject::kOverwrite);
+		output->Close();
 	}
 }

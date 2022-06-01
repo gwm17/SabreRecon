@@ -97,7 +97,11 @@ namespace SabreRecon {
 	{
 		m_YRot.RotateY(-1.0*m_tilt); //clockwise rotation
 		m_ZRot.RotateZ(m_phiCentral);
-	
+
+		m_deltaR_flat = s_Router - s_Rinner;
+		m_deltaR_flat_ring = m_deltaR_flat/s_nRings;
+		m_deltaPhi_flat_wedge = s_deltaPhi_flat/s_nWedges;
+
 		//Initialize coordinate arrays
 		if(m_drawingFlag)
 		{
@@ -115,11 +119,7 @@ namespace SabreRecon {
 				m_wedgeCoords_flat[i].resize(4);
 				m_wedgeCoords_tilt[i].resize(4);
 			}
-		
-			m_deltaR_flat = s_Router - s_Rinner;
-			m_deltaR_flat_ring = m_deltaR_flat/s_nRings;
-			m_deltaPhi_flat_wedge = s_deltaPhi_flat/s_nWedges;
-		
+
 			CalculateCorners();
 		}
 	}
@@ -338,7 +338,6 @@ namespace SabreRecon {
 		double z = 0;
 	
 		TVector3 hit(x, y, z);
-
 		return TransformToTiltedFrame(hit);
 	}
 

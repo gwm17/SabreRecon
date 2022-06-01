@@ -329,4 +329,11 @@ namespace SabreRecon {
 		return result;
 	}
 
+	TVector3 Reconstructor::GetSabreCoordinates(const SabrePair& pair)
+	{
+		if(pair.detID == 4)
+			return m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
+			return m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
+	}
 }

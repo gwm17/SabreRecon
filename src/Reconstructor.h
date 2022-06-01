@@ -52,6 +52,8 @@ namespace SabreRecon {
     	ReconResult RunSabreExcitation(double xavg, double beamKE, const SabrePair& sabre,  const std::vector<NucID>& nuclei);
     	//nuclei: target, projectile, ejectile, decayFP
     	ReconResult RunSabreExcitationDetEject(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei);
+
+		TVector3 GetSabreCoordinates(const SabrePair& pair);
     	
 
 	private:

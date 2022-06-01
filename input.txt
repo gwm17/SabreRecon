@@ -1,6 +1,7 @@
 begin_data
-	input /data1/gwm17/10B3He/May2022/calibrated/runs_53_89.root
-	output /data1/gwm17/10B3He/May2022/histograms/calHistograms_53_89_newRecon.root
+	input /Volumes/Wyndle/10B3He_May2022/calibrated/run_53_149_cal.root
+	output /Volumes/Wyndle/10B3He_May2022/histograms/calHistograms_53_149.root
+	beamKE(MeV) 24.0
 end_data
 begin_reconstructor
 	begin_focalplane
@@ -19,5 +20,6 @@ begin_reconstructor
 	end_target
 end_reconstructor
 begin_cuts
-	ede_alphas /data1/gwm17/10B3He/May2022/cuts/edeAlphas.root scintE cathodeE
+	ede_alphas /Volumes/Wyndle/10B3He_May2022/cuts/edeCut_alphas.root scintE cathodeE
+	x1x2 /Volumes/Wyndle/10B3He_May2022/cuts/x1x2Cut.root x1 x2
 end_cuts

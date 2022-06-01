@@ -49,13 +49,17 @@ namespace SabreRecon {
 		std::string m_outputData;
 
 		CalEvent* m_eventPtr;
+		double m_beamKE;
 
 		Reconstructor m_recon;
 		CutHandler m_cuts;
 
 		bool m_isValid;
 
-		std::unordered_map<std::string, std::shared_ptr<TObject>> m_histoMap;
+		std::unordered_map<std::string, std::shared_ptr<TObject> > m_histoMap;
+
+		static constexpr double s_weakSabreThreshold = 0.2; //MeV
+		static constexpr double s_rad2deg = 180.0/M_PI;
 	};
 }
 

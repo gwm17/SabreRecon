@@ -1,7 +1,0 @@
-module "CalDict" {
-  requires cplusplus
-  module "DataStructs.h" { header "DataStructs.h" export * }
-  link "libCalDict.dylib"
-  export *
-}
-

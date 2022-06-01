@@ -1,5 +1,0 @@
-[ libCalDict.dylib ]
-# List of selected classes
-class CalEvent
-class SabrePair
-header DataStructs.h

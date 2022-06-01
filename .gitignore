@@ -5,6 +5,7 @@
 *.code-workspace
 *.cxx
 *.pcm
+.vscode/
 SabreRecon
 build/
 

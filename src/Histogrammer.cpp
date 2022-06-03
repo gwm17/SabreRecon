@@ -10,6 +10,11 @@
 
 namespace SabreRecon {
 
+	double Phi360(double phi)
+	{
+		return phi < 0 ? (2.0*M_PI + phi) : phi;
+	}
+
 	Histogrammer::Histogrammer(const std::string& input) :
 		m_inputData(""), m_outputData(""), m_eventPtr(new CalEvent), m_isValid(false)
 	{
@@ -213,6 +218,11 @@ namespace SabreRecon {
 		ReconResult recon5Li, recon7Be, recon8Be, recon14N;
 		TVector3 sabreCoords;
 
+		//Temp
+		TFile* punchCutFile = TFile::Open("/Volumes/Wyndle/10B3He_May2022/cuts/protonPunchGate_strict.root");
+		TCutG* protonGate = (TCutG*) punchCutFile->Get("CUTG");
+		protonGate->SetName("protonPunchGate");
+
 		for(uint64_t i=0; i<nevents; i++)
 		{
 			tree->GetEntry(i);
@@ -225,54 +235,105 @@ namespace SabreRecon {
 			}
 
 			//Only analyze data that passes cuts, has sabre, and passes a weak threshold requirement
-			if(m_cuts.IsInside() && !m_eventPtr->sabre.empty() && m_eventPtr->sabre[0].ringE > s_weakSabreThreshold)
+			if(m_cuts.IsInside())
 			{
-				recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{2,4}});
-				recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{1,1}});
-				recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{5,10},{2,3},{2,4},{1,2}});
-				recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, m_eventPtr->sabre[0], {{6,12},{2,3},{2,4},{1,1}});
-				sabreCoords = m_recon.GetSabreCoordinates(m_eventPtr->sabre[0]);
+				FillHistogram1D({"xavg_gated","xavg_gated;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+				if(!m_eventPtr->sabre.empty() && m_eventPtr->sabre[0].ringE > s_weakSabreThreshold)
+				{
+					auto& biggestSabre = m_eventPtr->sabre[0];
+					recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{2,4}});
+					recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,1}});
+					recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,2}});
+					recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{8,16},{2,3},{2,4},{1,1}});
+					sabreCoords = m_recon.GetSabreCoordinates(biggestSabre);
 
-				FillHistogram1D({"xavg","xavg_gated;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
-				FillHistogram2D({"scintE_cathodeE","scintE_cathodeE;scintE;cathodeE",512,0,4096,512,0,4096},
-								m_eventPtr->scintE, m_eventPtr->cathodeE);
-				FillHistogram2D({"xavg_theta","xavg_theta;xavg;theta",600,-300.0,300.0,500,0.0,1.5}, m_eventPtr->xavg, m_eventPtr->theta);
+					FillHistogram1D({"xavg_gated_sabre","xavg_gated_sabre;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					FillHistogram2D({"scintE_cathodeE","scintE_cathodeE;scintE;cathodeE",512,0,4096,512,0,4096},
+									m_eventPtr->scintE, m_eventPtr->cathodeE);
+					FillHistogram2D({"xavg_theta","xavg_theta;xavg;theta",600,-300.0,300.0,500,0.0,1.5}, m_eventPtr->xavg, m_eventPtr->theta);
 
-				FillHistogram1D({"ex_5Li", "ex_5Li;E_x(MeV);counts",2000,0.0,20.0}, recon5Li.excitation);
-				FillHistogram1D({"ex_7Be", "ex_7Be;E_x(MeV);counts",2000,-10.0,10.0}, recon7Be.excitation);
-				FillHistogram1D({"ex_8Be", "ex_8Be;E_x(MeV);counts",2000,0.0,20.0}, recon8Be.excitation);
-				FillHistogram1D({"ex_14N", "ex_14N;E_x(MeV);counts",2000,-10.0,10.0}, recon14N.excitation);
-				FillHistogram2D({"ex_14N_7Be","ex_14N_7Be;E_x 14N;E_x 7Be",500,-10.0,10.0,500,-10.,10.0}, recon14N.excitation,
-								recon7Be.excitation);
-				FillHistogram2D({"sabreTheta_sabreE","sabreTheta_sabreE;#theta (deg); E(MeV)",180,0,180,400,0,20.0},
-								sabreCoords.Theta()*s_rad2deg, m_eventPtr->sabre[0].ringE);
-				FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},
-								m_eventPtr->xavg, m_eventPtr->sabre[0].ringE);
+					FillHistogram1D({"ex_5Li", "ex_5Li;E_x(MeV);counts",3000,-5.0,25.0}, recon5Li.excitation);
+					FillHistogram1D({"ex_7Be", "ex_7Be;E_x(MeV);counts",3000,-20.0,10.0}, recon7Be.excitation);
+					FillHistogram1D({"ex_8Be", "ex_8Be;E_x(MeV);counts",3000,-5.0,25.0}, recon8Be.excitation);
+					FillHistogram1D({"ex_14N", "ex_14N;E_x(MeV);counts",3000,-20.0,10.0}, recon14N.excitation);
+					FillHistogram2D({"ex_14N_7Be","ex_14N_7Be;E_x 14N;E_x 7Be",500,-10.0,10.0,500,-10.,10.0}, recon14N.excitation,
+									recon7Be.excitation);
+					FillHistogram2D({"sabreTheta_sabreE","sabreTheta_sabreE;#theta (deg); E(MeV)",180,0,180,400,0,20.0},
+									sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
+					FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},
+									m_eventPtr->xavg, biggestSabre.ringE);
 
-				//Gate on reconstr. excitation structures; overlaping cases are possible!
-				if(recon5Li.excitation > -1.5 && recon5Li.excitation < 1.5)
-				{
-					FillHistogram1D({"xavg_gated5Ligs", "xavg_gated5Ligs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0 && (biggestSabre.detID == 2 || biggestSabre.detID == 3))
+					{
+						FillHistogram2D({"sabreE_sabreTheta_nub","sabreE_sabreTheta_nub;#theta (deg);E(MeV)",
+										180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,biggestSabre.ringE);
+						FillHistogram2D({"sabreE_sabrePhi_nub","sabreE_sabreTheta_nub;#phi (deg);E(MeV)",
+										360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,biggestSabre.ringE);
+					}
+
+					//Gate on reconstr. excitation structures; overlaping cases are possible!
+					if(recon5Li.excitation > -1.5 && recon5Li.excitation < 1.5)
+					{
+						FillHistogram1D({"xavg_gated5Ligs", "xavg_gated5Ligs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					}
+					if(recon8Be.excitation > -0.1 && recon8Be.excitation < 0.1)
+					{
+						FillHistogram1D({"xavg_gated8Begs", "xavg_gated8Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					}
+					if(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.15)
+					{
+						FillHistogram1D({"xavg_gated7Begs", "xavg_gated7Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+						FillHistogram2D({"xavg_sabreE_7Begs","xavg_sabreE_7Begs;xavg;E(MeV)",600,-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg,
+										biggestSabre.ringE);
+						if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0)
+						{
+							FillHistogram2D({"sabreE_sabreTheta_7begs_nub","sabreE_sabreTheta_7begs_nub;#theta (deg);E(MeV)",
+											180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,biggestSabre.ringE);
+							FillHistogram2D({"sabreE_sabrePhi_7begs_nub","sabreE_sabreTheta_7begs_nub;#phi (deg);E(MeV)",
+											360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,biggestSabre.ringE);
+						}
+					}
+					if(recon14N.excitation > -0.1 && recon14N.excitation < 0.1)
+					{
+						FillHistogram1D({"xavg_gated14Ngs", "xavg_gated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					}
+					else
+					{
+						FillHistogram1D({"xavg_notGated14Ngs", "xavg_notGated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+					}
+
+					//Degrader analysis... SABRE detectors 0, 1, 4 are covered with tantalum
+					if(biggestSabre.detID == 0 || biggestSabre.detID == 1 || biggestSabre.detID == 4)
+					{
+						FillHistogram2D({"sabreE_sabreTheta_degraded", "sabreE_sabreTheta_degraded;#theta (deg);E(MeV)",
+										180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
+						FillHistogram2D({"xavg_sabreE_degraded", "xavg_sabreE_degraded;xavg;E(MeV)",
+										600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
+						if(biggestSabre.local_wedge != 0 && biggestSabre.local_wedge != 7 && biggestSabre.local_ring != 15 && biggestSabre.local_ring != 0) //Edges might not be degraded right
+						{
+							FillHistogram2D({"sabreE_sabreTheta_degraded_rejectEdge", "sabreE_sabreTheta_degraded;#theta (deg);E(MeV)",
+										180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
+							FillHistogram2D({"xavg_sabreE_degraded_rejectEdge", "xavg_sabreE_degraded;xavg;E(MeV)",
+										600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
+							FillHistogram1D({"xavg_degraded_rejectEdge","xavg_degraded_rejectEdge;xavg",600,-300.0,300.0}, m_eventPtr->xavg);
+							if(protonGate->IsInside(sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE))
+							{
+								FillHistogram2D({"xavg_sabreE_degraded_rejectEdge_pGate", "xavg_sabreE_degraded;xavg;E(MeV)",
+												600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
+								FillHistogram1D({"xavg_degraded_rejectEdge_pGate","xavg_degraded_rejectEdge;xavg",600,-300.0,300.0}, m_eventPtr->xavg);
+							}
+						}
+					}
 				}
-				if(recon8Be.excitation > -0.1 && recon8Be.excitation < 0.1)
-				{
-					FillHistogram1D({"xavg_gated8Begs", "xavg_gated8Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
-				}
-				if(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.1)
-				{
-					FillHistogram1D({"xavg_gated7Begs", "xavg_gated7Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
-				}
-				if(recon14N.excitation > -0.1 && recon14N.excitation < 0.1)
-				{
-					FillHistogram1D({"xavg_gated14Ngs", "xavg_gated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
-				}
-			}
+			}	
 		}
 		std::cout<<std::endl;
 		input->Close();
 		output->cd();
 		for(auto& gram : m_histoMap)
 			gram.second->Write(gram.second->GetName(), TObject::kOverwrite);
+		protonGate->Write();
 		output->Close();
+		punchCutFile->Close();
 	}
 }

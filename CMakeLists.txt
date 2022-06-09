@@ -7,4 +7,5 @@ set(SABRERECON_LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 set(CMAKE_CXX_STANDARD 17)
 
+add_subdirectory(src/vendor/catima)
 add_subdirectory(src)

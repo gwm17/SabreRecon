@@ -24,6 +24,7 @@ namespace SabreRecon {
 		MassLookup();
 		~MassLookup();
 		double FindMass(int Z, int A);
+		double FindMassU(int Z, int A) { return FindMass(Z, A)/u_to_mev; }
 		std::string FindSymbol(int Z, int A);
 	
 		inline static MassLookup& GetInstance() { return *s_instance; }

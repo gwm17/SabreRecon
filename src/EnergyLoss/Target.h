@@ -16,6 +16,7 @@ Written by G.W. McCann Aug. 2020
 #include <string>
 #include <vector>
 #include "EnergyLoss.h"
+#include "catima/gwm_integrators.h"
 
 namespace SabreRecon {
 
@@ -24,10 +25,10 @@ namespace SabreRecon {
 
 	public:
 		Target();
-	 	Target(const std::vector<int>& z, const std::vector<int>& stoich, double thick);
+	 	Target(const std::vector<int>& a, const std::vector<int>& z, const std::vector<int>& stoich, double thick);
 	 	~Target();
 
-	 	void SetParameters(const std::vector<int>& z, const std::vector<int>& stoich, double thick);
+	 	void SetParameters(const std::vector<int>& a, const std::vector<int>& z, const std::vector<int>& stoich, double thick);
 	 	double GetEnergyLossTotal(int zp, int ap, double startEnergy, double angle);
 	 	double GetReverseEnergyLossTotal(int zp, int ap, double finalEnergy, double angle);
 	 	double GetEnergyLossFractionalDepth(int zp, int ap, double startEnergy, double angle, double percent_depth);
@@ -39,7 +40,10 @@ namespace SabreRecon {
 	
 	private:
 		EnergyLoss::Parameters m_params;
+		catima::Material m_material;
+		catima::Projectile m_projectile;
 		double m_totalThickness;
+		double m_totalThickness_gcm2;
 		bool m_isValid;
 	};
 

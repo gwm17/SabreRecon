@@ -30,6 +30,7 @@ target_sources(SabreRecon PUBLIC
 	)
 target_link_libraries(SabreRecon
 	CalDict
+	catima
 	${ROOT_LIBRARIES}
 	)
 set_target_properties(SabreRecon PROPERTIES

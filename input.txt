@@ -1,6 +1,6 @@
 begin_data
-	input /Volumes/Wyndle/10B3He_May2022/calibrated/run_53_149_cal.root
-	output /Volumes/Wyndle/10B3He_May2022/histograms/calHistograms_53_149.root
+	input /Volumes/Wyndle/10B3He_May2022/calibrated/run_53_143_cal.root
+	output /Volumes/Wyndle/10B3He_May2022/histograms/calHistograms_53_143_newEloss.root
 	beamKE(MeV) 24.0
 end_data
 begin_reconstructor
@@ -8,14 +8,14 @@ begin_reconstructor
 		B 8.759
 		theta 15.0
 		begin_fpcal
-			78.5352
-			0.038
+			78.5946
+			0.0382
 		end_fpcal
 	end_focalplane
 	begin_target
 		thickness 74.0
 		begin_elements
-			5 1
+			5 10 1
 		end_elements
 	end_target
 end_reconstructor

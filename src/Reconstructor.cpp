@@ -187,12 +187,15 @@ namespace SabreRecon {
 		auto resid_vec = targ_vec + proj_vec - eject_vec;
 
 		result.excitation = resid_vec.M() - massResid;
+		result.residThetaLab = resid_vec.Theta();
+		result.residPhiLab = resid_vec.Phi();
 
 		auto parent_vec = targ_vec + proj_vec;
 		auto boost = parent_vec.BoostVector();
 		eject_vec.Boost(-1.0*boost);
-		result.theta_cm = eject_vec.Theta();
-		result.phi_cm = eject_vec.Phi();
+
+		result.ejectThetaCM = eject_vec.Theta();
+		result.ejectPhiCM = eject_vec.Phi();
 
 		return result;
 	}
@@ -235,8 +238,8 @@ namespace SabreRecon {
 		auto parent_vec = targ_vec + proj_vec;
 		auto boost = parent_vec.BoostVector();
 		eject_vec.Boost(-1.0*boost);
-		result.theta_cm = eject_vec.Theta();
-		result.phi_cm = eject_vec.Phi();
+		result.ejectThetaCM = eject_vec.Theta();
+		result.ejectPhiCM = eject_vec.Phi();
 
 		return result;
 	}
@@ -279,8 +282,8 @@ namespace SabreRecon {
 		result.excitation = decayFrag_vec.M() - massDecayFrag;
 		auto boost = resid_vec.BoostVector();
 		decayBreak_vec.Boost(-1.0*boost);
-		result.theta_cm = decayBreak_vec.Theta();
-		result.phi_cm = decayBreak_vec.Phi();
+		result.ejectThetaCM = decayBreak_vec.Theta();
+		result.ejectPhiCM = decayBreak_vec.Phi();
 
 		return result;
 	}
@@ -323,8 +326,8 @@ namespace SabreRecon {
 		result.excitation = decayFrag_vec.M() - massDecayFrag;
 		auto boost = resid_vec.BoostVector();
 		decayBreak_vec.Boost(-1.0*boost);
-		result.theta_cm = decayBreak_vec.Theta();
-		result.phi_cm = decayBreak_vec.Phi();
+		result.ejectThetaCM = decayBreak_vec.Theta();
+		result.ejectPhiCM = decayBreak_vec.Phi();
 
 		return result;
 	}

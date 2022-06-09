@@ -40,6 +40,7 @@ namespace SabreRecon {
 
 		double thickness;
 		std::vector<int> targ_z;
+		std::vector<int> targ_a;
 		std::vector<int> targ_s;
 
 		std::vector<ReconCut> cuts;
@@ -105,8 +106,10 @@ namespace SabreRecon {
 							{
 								targ_z.push_back(std::stoi(junk));
 								input>>junk;
+								targ_a.push_back(std::stoi(junk));
+								input>>junk;
 								targ_s.push_back(std::stoi(junk));
-								std::cout<<"e"<<targ_s.size()-1<<": ("<<targ_z[targ_z.size()-1]<<","<<targ_s[targ_z.size()-1]<<") ";
+								std::cout<<"e"<<targ_s.size()-1<<": ("<<targ_z[targ_z.size()-1]<<","<<targ_a[targ_z.size()-1]<<","<<targ_s[targ_z.size()-1]<<") ";
 							}
 						}
 						std::cout<<std::endl;
@@ -143,7 +146,7 @@ namespace SabreRecon {
 
 		//init resources
 		std::cout<<"Initializing resources..."<<std::endl;
-		Target target(targ_z, targ_s, thickness);
+		Target target(targ_a, targ_z, targ_s, thickness);
 		m_recon.Init(target, theta, B, fpCal);
 		m_cuts.InitCuts(cuts);
 		m_cuts.InitEvent(m_eventPtr);
@@ -215,11 +218,12 @@ namespace SabreRecon {
 		uint64_t count = 0, flush_count = 0, flush_val = nevents*flush_frac;
 
 		//Analysis results data
-		ReconResult recon5Li, recon7Be, recon8Be, recon14N;
-		TVector3 sabreCoords;
+		ReconResult recon5Li, recon7Be, recon8Be, recon14N, recon9B;
+		TVector3 sabreCoords, b9Coords;
+		double relAngle;
 
 		//Temp
-		TFile* punchCutFile = TFile::Open("/Volumes/Wyndle/10B3He_May2022/cuts/protonPunchGate_strict.root");
+		TFile* punchCutFile = TFile::Open("/Volumes/Wyndle/10B3He_May2022/cuts/punchProtons_relAngle.root");
 		TCutG* protonGate = (TCutG*) punchCutFile->Get("CUTG");
 		protonGate->SetName("protonPunchGate");
 
@@ -241,11 +245,14 @@ namespace SabreRecon {
 				if(!m_eventPtr->sabre.empty() && m_eventPtr->sabre[0].ringE > s_weakSabreThreshold)
 				{
 					auto& biggestSabre = m_eventPtr->sabre[0];
+					recon9B = m_recon.RunFPResidExcitation(m_eventPtr->xavg, m_beamKE, {{5,10},{2,3},{3,4}});
 					recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{2,4}});
 					recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,1}});
 					recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,2}});
 					recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{8,16},{2,3},{2,4},{1,1}});
 					sabreCoords = m_recon.GetSabreCoordinates(biggestSabre);
+					b9Coords.SetMagThetaPhi(1.0, recon9B.residThetaLab, recon9B.residPhiLab);
+					relAngle = std::acos(b9Coords.Dot(sabreCoords)/(sabreCoords.Mag()*b9Coords.Mag()));
 
 					FillHistogram1D({"xavg_gated_sabre","xavg_gated_sabre;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
 					FillHistogram2D({"scintE_cathodeE","scintE_cathodeE;scintE;cathodeE",512,0,4096,512,0,4096},
@@ -262,6 +269,10 @@ namespace SabreRecon {
 									sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
 					FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},
 									m_eventPtr->xavg, biggestSabre.ringE);
+					FillHistogram2D({"9Btheta_sabreTheta","9Btheta_sabreTheta;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,
+									180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
+					FillHistogram2D({"sabreE_relAngle","sabreE_relAngle;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,
+									biggestSabre.ringE);
 
 					if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0 && (biggestSabre.detID == 2 || biggestSabre.detID == 3))
 					{
@@ -297,9 +308,11 @@ namespace SabreRecon {
 					{
 						FillHistogram1D({"xavg_gated14Ngs", "xavg_gated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
 					}
-					else
+					
+					if(!(recon14N.excitation > -0.1 && recon14N.excitation < 0.1) && !(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.15)
+						&& !(recon8Be.excitation > -0.1 && recon8Be.excitation < 0.1) && !(recon5Li.excitation > -1.5 && recon5Li.excitation < 1.5))
 					{
-						FillHistogram1D({"xavg_notGated14Ngs", "xavg_notGated14Ngs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+						FillHistogram1D({"xavg_notGatedAllChannels", "xavg_notGatedAllChannels;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
 					}
 
 					//Degrader analysis... SABRE detectors 0, 1, 4 are covered with tantalum
@@ -309,6 +322,10 @@ namespace SabreRecon {
 										180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
 						FillHistogram2D({"xavg_sabreE_degraded", "xavg_sabreE_degraded;xavg;E(MeV)",
 										600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
+						FillHistogram2D({"9Btheta_sabreTheta_degraded","9Btheta_sabreTheta_degraded;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,
+										180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
+						FillHistogram2D({"sabreE_relAngle_degraded","sabreE_relAngle_degraded;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,
+										biggestSabre.ringE);
 						if(biggestSabre.local_wedge != 0 && biggestSabre.local_wedge != 7 && biggestSabre.local_ring != 15 && biggestSabre.local_ring != 0) //Edges might not be degraded right
 						{
 							FillHistogram2D({"sabreE_sabreTheta_degraded_rejectEdge", "sabreE_sabreTheta_degraded;#theta (deg);E(MeV)",
@@ -316,7 +333,12 @@ namespace SabreRecon {
 							FillHistogram2D({"xavg_sabreE_degraded_rejectEdge", "xavg_sabreE_degraded;xavg;E(MeV)",
 										600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
 							FillHistogram1D({"xavg_degraded_rejectEdge","xavg_degraded_rejectEdge;xavg",600,-300.0,300.0}, m_eventPtr->xavg);
-							if(protonGate->IsInside(sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE))
+							FillHistogram2D({"9Btheta_sabreTheta_degraded_rejectEdge","9Btheta_sabreTheta_degraded_rejectEdge;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,
+										180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
+							FillHistogram2D({"sabreE_relAngle_degraded_rejectEdge","sabreE_relAngle_degraded_rejectEdge;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,
+											biggestSabre.ringE);
+							
+							if(protonGate->IsInside(relAngle*s_rad2deg, biggestSabre.ringE))
 							{
 								FillHistogram2D({"xavg_sabreE_degraded_rejectEdge_pGate", "xavg_sabreE_degraded;xavg;E(MeV)",
 												600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);

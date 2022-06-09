@@ -14,8 +14,12 @@ namespace SabreRecon {
 	struct ReconResult
 	{
 		double excitation;
-		double theta_cm;
-		double phi_cm;
+		double ejectThetaCM;
+		double ejectPhiCM;
+		double residThetaLab;
+		double residPhiLab;
+		double residThetaCM;
+		double residPhiCM;
 	};
 
 	struct NucID

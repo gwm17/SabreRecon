@@ -23,42 +23,159 @@ namespace SabreRecon {
 		m_focalPlane.Init({spsB, spsTheta, spsCal});
 		for(int i=0; i<5; i++)
 			m_sabreArray.emplace_back(SabreDetector::Parameters(s_phiDet[i], s_tiltAngle, s_zOffset, false, i));
+
+		//Setup intermediate energy loss layers
+		m_sabreDeadLayer.SetParameters({28}, {14}, {1}, s_sabreDeadlayerThickness);
+	}
+
+	void Reconstructor::AddEnergyLossTable(const std::string& filename)
+	{
+		m_elossTables.emplace_back(filename);
+	}
+
+	void Reconstructor::AddPunchThruTable(const std::string& filename)
+	{
+		m_punchTables.emplace_back(filename);
+	}
+
+	PunchTable::ElossTable* Reconstructor::GetElossTable(const NucID& projectile, const NucID& material)
+	{
+		MassLookup& masses = MassLookup::GetInstance();
+		std::string projString = masses.FindSymbol(projectile.Z, projectile.A);
+		std::string matString = masses.FindSymbol(material.Z, material.A) + "1"; //temp
+
+		for(auto& table : m_elossTables)
+		{
+			if(table.GetProjectile() == projString && table.GetMaterial() == matString)
+				return &table;
+		}
+
+		return nullptr;
+	}
+
+	PunchTable::PunchTable* Reconstructor::GetPunchThruTable(const NucID& projectile, const NucID& material)
+	{
+		MassLookup& masses = MassLookup::GetInstance();
+		std::string projString = masses.FindSymbol(projectile.Z, projectile.A);
+		std::string matString = masses.FindSymbol(material.Z, material.A) + "1"; //temp
+
+		for(auto& table : m_punchTables)
+		{
+			if(table.GetProjectile() == projString && table.GetMaterial() == matString)
+				return &table;
+		}
+
+		return nullptr;
 	}
 
 	TLorentzVector Reconstructor::GetSabre4Vector(const SabrePair& pair, double mass)
 	{
 		TVector3 coords;
 		TLorentzVector result;
-		double p, E;
-		if(pair.detID == 4)
-			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		else
+		double p, E, theta, phi;
+		//if(pair.detID == 4)
+		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		//else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 		p = std::sqrt(pair.ringE*(pair.ringE + 2.0*mass));
 		E = pair.ringE + mass;
-		result.SetPxPyPzE(p*std::sin(coords.Theta())*std::cos(coords.Phi()),
-						  p*std::sin(coords.Theta())*std::sin(coords.Phi()),
-						  p*std::cos(coords.Theta()),
+		theta = coords.Theta();
+		phi = coords.Phi();
+		result.SetPxPyPzE(p*std::sin(theta)*std::cos(phi),
+						  p*std::sin(theta)*std::sin(phi),
+						  p*std::cos(theta),
 						  E);
 		return result;
 	}
 
 	TLorentzVector Reconstructor::GetSabre4VectorEloss(const SabrePair& pair, double mass, const NucID& id)
 	{
-		TVector3 coords;
+		TVector3 coords, sabreNorm;
 		TLorentzVector result;
-		double p, E, rxnKE;
-		if(pair.detID == 4)
-			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		else
+		double incidentAngle, p, E, rxnKE, theta, phi;
+
+		//if(pair.detID == 4)
+		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		//else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
-		rxnKE = pair.ringE + m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, pair.ringE, coords.Theta(), 0.5);
-		p = std::sqrt(pair.ringE*(pair.ringE + 2.0*mass));
-		E = pair.ringE + mass;
-		result.SetPxPyPzE(p*std::sin(coords.Theta())*std::cos(coords.Phi()),
-						  p*std::sin(coords.Theta())*std::sin(coords.Phi()),
-						  p*std::cos(coords.Theta()),
+		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
+		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
+
+		rxnKE = pair.ringE + m_sabreDeadLayer.GetReverseEnergyLossTotal(id.Z, id.A, pair.ringE, incidentAngle);
+		rxnKE += m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, rxnKE, coords.Theta(), 0.5);
+		p = std::sqrt(rxnKE*(rxnKE + 2.0*mass));
+		E = rxnKE + mass;
+		theta = coords.Theta();
+		phi = coords.Phi();
+		result.SetPxPyPzE(p*std::sin(theta)*std::cos(phi),
+						  p*std::sin(theta)*std::sin(phi),
+						  p*std::cos(theta),
 						  E);
+		return result;
+	}
+
+	TLorentzVector Reconstructor::GetSabre4VectorElossPunchThru(const SabrePair& pair, double mass, const NucID& id)
+	{
+		TVector3 coords, sabreNorm;
+		TLorentzVector result;
+		double incidentAngle, p, E, rxnKE, theta, phi;
+
+		PunchTable::PunchTable* table = GetPunchThruTable(id, {14, 28});
+		if(table == nullptr)
+			return result;
+
+		//if(pair.detID == 4)
+		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		//else
+			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
+		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
+		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
+		if(incidentAngle > M_PI/2.0)
+			incidentAngle = M_PI - incidentAngle;
+		rxnKE = table->GetInitialKineticEnergy(incidentAngle, pair.ringE);
+		if(rxnKE == 0.0)
+			return result;
+		rxnKE += m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, rxnKE, coords.Theta(), 0.5);
+		p = std::sqrt(rxnKE*(rxnKE + 2.0*mass));
+		E = rxnKE + mass;
+		theta = coords.Theta();
+		phi = coords.Phi();
+		result.SetPxPyPzE(p*std::sin(theta)*std::cos(phi), p*std::sin(theta)*std::sin(phi), p*std::cos(theta), E);
+		return result;
+	}
+
+	TLorentzVector Reconstructor::GetSabre4VectorElossPunchThruDegraded(const SabrePair& pair, double mass, const NucID& id)
+	{
+		TVector3 coords, sabreNorm;
+		TLorentzVector result;
+		double incidentAngle, p, E, rxnKE, theta, phi;
+
+		PunchTable::PunchTable* ptable = GetPunchThruTable(id, {14, 28});
+		PunchTable::ElossTable* etable = GetElossTable(id, {73, 181});
+		if(ptable == nullptr || etable == nullptr)
+			return result;
+
+		//if(pair.detID == 4)
+		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		//else
+			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
+		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
+		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
+		if(incidentAngle > M_PI/2.0)
+			incidentAngle = M_PI - incidentAngle;
+
+		rxnKE = ptable->GetInitialKineticEnergy(incidentAngle, pair.ringE);
+		if(rxnKE == pair.ringE)
+			return result;
+		rxnKE += etable->GetEnergyLoss(incidentAngle, rxnKE);
+		if(rxnKE == 0.0)
+			return result;
+		rxnKE += m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, rxnKE, coords.Theta(), 0.5);
+		p = std::sqrt(rxnKE*(rxnKE + 2.0*mass));
+		E = rxnKE + mass;
+		theta = coords.Theta();
+		phi = coords.Phi();
+		result.SetPxPyPzE(p*std::sin(theta)*std::cos(phi), p*std::sin(theta)*std::sin(phi), p*std::cos(theta), E);
 		return result;
 	}
 
@@ -236,6 +353,7 @@ namespace SabreRecon {
 		result.excitation = resid_vec.M() - massResid;
 
 		auto parent_vec = targ_vec + proj_vec;
+		result.sabreRxnKE = eject_vec.E() - massEject;
 		auto boost = parent_vec.BoostVector();
 		eject_vec.Boost(-1.0*boost);
 		result.ejectThetaCM = eject_vec.Theta();
@@ -280,6 +398,7 @@ namespace SabreRecon {
 		TLorentzVector decayFrag_vec = resid_vec - decayBreak_vec;
 
 		result.excitation = decayFrag_vec.M() - massDecayFrag;
+		result.sabreRxnKE = decayBreak_vec.E() - massDecayBreak;
 		auto boost = resid_vec.BoostVector();
 		decayBreak_vec.Boost(-1.0*boost);
 		result.ejectThetaCM = decayBreak_vec.Theta();
@@ -324,6 +443,105 @@ namespace SabreRecon {
 		TLorentzVector decayFrag_vec = resid_vec - decayBreak_vec;
 
 		result.excitation = decayFrag_vec.M() - massDecayFrag;
+		result.sabreRxnKE = eject_vec.E() - massEject;
+		auto boost = resid_vec.BoostVector();
+		decayBreak_vec.Boost(-1.0*boost);
+		result.ejectThetaCM = decayBreak_vec.Theta();
+		result.ejectPhiCM = decayBreak_vec.Phi();
+
+		return result;
+	}
+
+	ReconResult Reconstructor::RunSabreExcitationPunch(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei)
+	{
+		ReconResult result;
+
+		NucID decayFrag;
+		decayFrag.Z = nuclei[0].Z + nuclei[1].Z - nuclei[2].Z - nuclei[3].Z;
+		decayFrag.A = nuclei[0].A + nuclei[1].A - nuclei[2].A - nuclei[3].A;
+
+		if(decayFrag.Z > decayFrag.A || decayFrag.A <= 0 || decayFrag.Z < 0)
+		{
+			std::cerr<<"Invalid reisdual nucleus at Reconstructor::RunSabreExcitation with Z: "<<decayFrag.Z<<" A: "<<decayFrag.A<<std::endl;
+			return result;
+		}
+
+		MassLookup& masses = MassLookup::GetInstance();
+		double massTarg = masses.FindMass(nuclei[0].Z, nuclei[0].A);
+		double massProj = masses.FindMass(nuclei[1].Z, nuclei[1].A);
+		double massEject = masses.FindMass(nuclei[2].Z, nuclei[2].A);
+		double massDecayBreak = masses.FindMass(nuclei[3].Z, nuclei[3].A);
+		double massDecayFrag = masses.FindMass(decayFrag.Z, decayFrag.A);
+
+		if(massTarg == 0.0 || massProj == 0.0 || massEject == 0.0 || massDecayBreak == 0.0 || massDecayFrag == 0.0)
+		{
+			std::cerr<<"Invalid nuclei at Reconstructor::RunSabreExcitation by mass!"<<std::endl;
+			return result;
+		}
+
+		TLorentzVector targ_vec;
+		targ_vec.SetPxPyPzE(0.0, 0.0, 0.0, massTarg);
+		auto proj_vec = GetProj4VectorEloss(beamKE, massProj, nuclei[1]);
+		auto eject_vec = GetFP4VectorEloss(xavg, massEject, nuclei[2]);
+		auto decayBreak_vec = GetSabre4VectorElossPunchThru(sabre, massDecayBreak, nuclei[3]);
+		if(decayBreak_vec.E() == 0.0)
+		{
+			return result;
+		}
+		TLorentzVector resid_vec = targ_vec + proj_vec - eject_vec;
+		TLorentzVector decayFrag_vec = resid_vec - decayBreak_vec;
+
+		result.excitation = decayFrag_vec.M() - massDecayFrag;
+		result.sabreRxnKE = decayBreak_vec.E() - massDecayBreak;
+		auto boost = resid_vec.BoostVector();
+		decayBreak_vec.Boost(-1.0*boost);
+		result.ejectThetaCM = decayBreak_vec.Theta();
+		result.ejectPhiCM = decayBreak_vec.Phi();
+
+		return result;
+	}
+
+	ReconResult Reconstructor::RunSabreExcitationPunchDegraded(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei)
+	{
+		ReconResult result;
+
+		NucID decayFrag;
+		decayFrag.Z = nuclei[0].Z + nuclei[1].Z - nuclei[2].Z - nuclei[3].Z;
+		decayFrag.A = nuclei[0].A + nuclei[1].A - nuclei[2].A - nuclei[3].A;
+
+		if(decayFrag.Z > decayFrag.A || decayFrag.A <= 0 || decayFrag.Z < 0)
+		{
+			std::cerr<<"Invalid reisdual nucleus at Reconstructor::RunSabreExcitation with Z: "<<decayFrag.Z<<" A: "<<decayFrag.A<<std::endl;
+			return result;
+		}
+
+		MassLookup& masses = MassLookup::GetInstance();
+		double massTarg = masses.FindMass(nuclei[0].Z, nuclei[0].A);
+		double massProj = masses.FindMass(nuclei[1].Z, nuclei[1].A);
+		double massEject = masses.FindMass(nuclei[2].Z, nuclei[2].A);
+		double massDecayBreak = masses.FindMass(nuclei[3].Z, nuclei[3].A);
+		double massDecayFrag = masses.FindMass(decayFrag.Z, decayFrag.A);
+
+		if(massTarg == 0.0 || massProj == 0.0 || massEject == 0.0 || massDecayBreak == 0.0 || massDecayFrag == 0.0)
+		{
+			std::cerr<<"Invalid nuclei at Reconstructor::RunSabreExcitation by mass!"<<std::endl;
+			return result;
+		}
+
+		TLorentzVector targ_vec;
+		targ_vec.SetPxPyPzE(0.0, 0.0, 0.0, massTarg);
+		auto proj_vec = GetProj4VectorEloss(beamKE, massProj, nuclei[1]);
+		auto eject_vec = GetFP4VectorEloss(xavg, massEject, nuclei[2]);
+		auto decayBreak_vec = GetSabre4VectorElossPunchThruDegraded(sabre, massDecayBreak, nuclei[3]);
+		if(decayBreak_vec.E() == 0.0)
+		{
+			return result;
+		}
+		TLorentzVector resid_vec = targ_vec + proj_vec - eject_vec;
+		TLorentzVector decayFrag_vec = resid_vec - decayBreak_vec;
+
+		result.excitation = decayFrag_vec.M() - massDecayFrag;
+		result.sabreRxnKE = decayBreak_vec.E() - massDecayBreak;
 		auto boost = resid_vec.BoostVector();
 		decayBreak_vec.Boost(-1.0*boost);
 		result.ejectThetaCM = decayBreak_vec.Theta();
@@ -334,9 +552,9 @@ namespace SabreRecon {
 
 	TVector3 Reconstructor::GetSabreCoordinates(const SabrePair& pair)
 	{
-		if(pair.detID == 4)
-			return m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		else
+		//if(pair.detID == 4)
+		//	return m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		//else
 			return m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 	}
 }

@@ -41,6 +41,9 @@ namespace SabreRecon {
 		void Run();
 
 	private:
+		void RunSabre();
+		void RunDegradedSabre();
+
 		void ParseConfig(const std::string& name);
 		void FillHistogram1D(const Histogram1DParams& params, double value);
 		void FillHistogram2D(const Histogram2DParams& params, double valueX, double valueY);

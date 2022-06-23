@@ -26,6 +26,12 @@ target_sources(SabreRecon PUBLIC
 	EnergyLoss/EnergyLoss.cpp
 	EnergyLoss/Target.h
 	EnergyLoss/Target.cpp
+	EnergyLoss/CubicSpline.h
+	EnergyLoss/CubicSpline.cpp
+	EnergyLoss/PunchTable.h
+	EnergyLoss/PunchTable.cpp
+	EnergyLoss/ElossTable.h
+	EnergyLoss/ElossTable.cpp
 	main.cpp
 	)
 target_link_libraries(SabreRecon

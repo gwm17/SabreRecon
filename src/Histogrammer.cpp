@@ -319,11 +319,24 @@ namespace SabreRecon {
 		FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},m_eventPtr->xavg, biggestSabre.ringE);
 		FillHistogram2D({"9Btheta_sabreTheta","9Btheta_sabreTheta;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
 		FillHistogram2D({"sabreE_relAngle","sabreE_relAngle;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,biggestSabre.ringE);
+		FillHistogram2D({"sabreTheta_5Liex","sabreTheta_5Liex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-5.0,25.0},sabreCoords.Theta()*s_rad2deg,recon5Li.excitation);
+		FillHistogram2D({"sabreTheta_7Beex","sabreTheta_7Beex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon7Be.excitation);
+		FillHistogram2D({"sabreTheta_14Nex","sabreTheta_14Nex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon14N.excitation);
+		FillHistogram2D({"sabrePhi_5Liex","sabrePhi_5Liex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-5.0,25.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon5Li.excitation);
+		FillHistogram2D({"sabrePhi_7Beex","sabrePhi_7Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon7Be.excitation);
+		FillHistogram2D({"sabrePhi_14Nex","sabrePhi_14Nex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon14N.excitation);
 
-		if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0 && (biggestSabre.detID == 2 || biggestSabre.detID == 3))
+		if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0) //nub
 		{
 			FillHistogram2D({"sabreE_sabreTheta_nub","sabreE_sabreTheta_nub;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,biggestSabre.ringE);
 			FillHistogram2D({"sabreE_sabrePhi_nub","sabreE_sabreTheta_nub;#phi (deg);E(MeV)",360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,biggestSabre.ringE);
+		}
+		else if(m_eventPtr->xavg > -195.0 && m_eventPtr->xavg < -185.0) //Nabin peak
+		{
+			FillHistogram2D({"sabreTheta_5Liex_nabinPeak","sabreTheta_5Liex_nabinPeak;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-5.0,25.0},sabreCoords.Theta()*s_rad2deg,recon5Li.excitation);
+			FillHistogram2D({"sabreTheta_7Beex_nabinPeak","sabreTheta_7Beex_nabinPeak;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon7Be.excitation);
+			FillHistogram2D({"sabrePhi_5Liex_nabinPeak","sabrePhi_5Liex_nabinPeak;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-5.0,25.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon5Li.excitation);
+			FillHistogram2D({"sabrePhi_7Beex_nabinPeak","sabrePhi_7Beex_nabinPeak;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon7Be.excitation);
 		}
 
 		//Gate on reconstr. excitation structures; overlaping cases are possible!

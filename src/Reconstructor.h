@@ -90,8 +90,11 @@ namespace SabreRecon {
 
     	//SABRE constants
     	static constexpr double s_phiDet[5] = { 306.0, 18.0, 234.0, 162.0, 90.0 };
-    	static constexpr double s_tiltAngle = 40.0;
-    	static constexpr double s_zOffset = -0.1245;
+    	//static constexpr double s_tiltAngle = 40.0;
+    	static constexpr double s_tiltAngle = 38.0;
+    	static constexpr double s_zOffset = -0.1245; //Erin's SABRE code
+    	//static constexpr double s_zOffset = -0.1142; //From Ken's diagram
+		//static constexpr double s_zOffset = -0.1367; //Ken's diagram plus extra shift for our geometry
 		static constexpr double s_sabreDeadlayerThickness = 50.0 * 1.0e-7 * 2.3296 * 1.0e6; // 50 nm deadlayer -> ug/cm^2
 
     	//Kinematics constants

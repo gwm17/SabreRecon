@@ -73,9 +73,9 @@ namespace SabreRecon {
 		TVector3 coords;
 		TLorentzVector result;
 		double p, E, theta, phi;
-		//if(pair.detID == 4)
-		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		//else
+		if(pair.detID == 4)
+			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 		p = std::sqrt(pair.ringE*(pair.ringE + 2.0*mass));
 		E = pair.ringE + mass;
@@ -94,9 +94,9 @@ namespace SabreRecon {
 		TLorentzVector result;
 		double incidentAngle, p, E, rxnKE, theta, phi;
 
-		//if(pair.detID == 4)
-		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		//else
+		if(pair.detID == 4)
+			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
 		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
@@ -124,9 +124,9 @@ namespace SabreRecon {
 		if(table == nullptr)
 			return result;
 
-		//if(pair.detID == 4)
-		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		//else
+		if(pair.detID == 4)
+			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
 		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
@@ -155,9 +155,9 @@ namespace SabreRecon {
 		if(ptable == nullptr || etable == nullptr)
 			return result;
 
-		//if(pair.detID == 4)
-		//	coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		//else
+		if(pair.detID == 4)
+			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
 			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
 		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
 		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
@@ -168,6 +168,37 @@ namespace SabreRecon {
 		if(rxnKE == pair.ringE)
 			return result;
 		rxnKE += etable->GetEnergyLoss(incidentAngle, rxnKE);
+		if(rxnKE == 0.0)
+			return result;
+		rxnKE += m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, rxnKE, coords.Theta(), 0.5);
+		p = std::sqrt(rxnKE*(rxnKE + 2.0*mass));
+		E = rxnKE + mass;
+		theta = coords.Theta();
+		phi = coords.Phi();
+		result.SetPxPyPzE(p*std::sin(theta)*std::cos(phi), p*std::sin(theta)*std::sin(phi), p*std::cos(theta), E);
+		return result;
+	}
+
+	TLorentzVector Reconstructor::GetSabre4VectorElossDegraded(const SabrePair& pair, double mass, const NucID& id)
+	{
+		TVector3 coords, sabreNorm;
+		TLorentzVector result;
+		double incidentAngle, p, E, rxnKE, theta, phi;
+
+		PunchTable::ElossTable* etable = GetElossTable(id, {73, 181});
+		if(etable == nullptr)
+			return result;
+
+		if(pair.detID == 4)
+			coords = m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
+			coords = m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
+		sabreNorm = m_sabreArray[pair.detID].GetNormTilted();
+		incidentAngle = std::acos(sabreNorm.Dot(coords)/(sabreNorm.Mag()*coords.Mag()));
+		if(incidentAngle > M_PI/2.0)
+			incidentAngle = M_PI - incidentAngle;
+
+		rxnKE = pair.ringE + etable->GetEnergyLoss(incidentAngle, pair.ringE);
 		if(rxnKE == 0.0)
 			return result;
 		rxnKE += m_target.GetReverseEnergyLossFractionalDepth(id.Z, id.A, rxnKE, coords.Theta(), 0.5);
@@ -550,11 +581,67 @@ namespace SabreRecon {
 		return result;
 	}
 
+	ReconResult Reconstructor::RunSabreExcitationDegraded(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei)
+	{
+		ReconResult result;
+
+		NucID decayFrag;
+		decayFrag.Z = nuclei[0].Z + nuclei[1].Z - nuclei[2].Z - nuclei[3].Z;
+		decayFrag.A = nuclei[0].A + nuclei[1].A - nuclei[2].A - nuclei[3].A;
+
+		if(decayFrag.Z > decayFrag.A || decayFrag.A <= 0 || decayFrag.Z < 0)
+		{
+			std::cerr<<"Invalid reisdual nucleus at Reconstructor::RunSabreExcitation with Z: "<<decayFrag.Z<<" A: "<<decayFrag.A<<std::endl;
+			return result;
+		}
+
+		MassLookup& masses = MassLookup::GetInstance();
+		double massTarg = masses.FindMass(nuclei[0].Z, nuclei[0].A);
+		double massProj = masses.FindMass(nuclei[1].Z, nuclei[1].A);
+		double massEject = masses.FindMass(nuclei[2].Z, nuclei[2].A);
+		double massDecayBreak = masses.FindMass(nuclei[3].Z, nuclei[3].A);
+		double massDecayFrag = masses.FindMass(decayFrag.Z, decayFrag.A);
+
+		if(massTarg == 0.0 || massProj == 0.0 || massEject == 0.0 || massDecayBreak == 0.0 || massDecayFrag == 0.0)
+		{
+			std::cerr<<"Invalid nuclei at Reconstructor::RunSabreExcitation by mass!"<<std::endl;
+			return result;
+		}
+
+		TLorentzVector targ_vec;
+		targ_vec.SetPxPyPzE(0.0, 0.0, 0.0, massTarg);
+		auto proj_vec = GetProj4VectorEloss(beamKE, massProj, nuclei[1]);
+		auto eject_vec = GetFP4VectorEloss(xavg, massEject, nuclei[2]);
+		auto decayBreak_vec = GetSabre4VectorElossDegraded(sabre, massDecayBreak, nuclei[3]);
+		if(decayBreak_vec.E() == 0.0)
+		{
+			return result;
+		}
+		TLorentzVector resid_vec = targ_vec + proj_vec - eject_vec;
+		TLorentzVector decayFrag_vec = resid_vec - decayBreak_vec;
+
+		result.excitation = decayFrag_vec.M() - massDecayFrag;
+		result.sabreRxnKE = decayBreak_vec.E() - massDecayBreak;
+		auto boost = resid_vec.BoostVector();
+		decayBreak_vec.Boost(-1.0*boost);
+		result.ejectThetaCM = decayBreak_vec.Theta();
+		result.ejectPhiCM = decayBreak_vec.Phi();
+
+		return result;
+	}
+
 	TVector3 Reconstructor::GetSabreCoordinates(const SabrePair& pair)
 	{
-		//if(pair.detID == 4)
-		//	return m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
-		//else
+		if(pair.detID == 4)
+			return m_sabreArray[4].GetHitCoordinates(15-pair.local_ring, pair.local_wedge);
+		else
 			return m_sabreArray[pair.detID].GetHitCoordinates(pair.local_ring, pair.local_wedge);
+	}
+
+	TVector3 Reconstructor::GetSabreNorm(int detID)
+	{
+		if(detID >= m_sabreArray.size() || detID < 0)
+			return TVector3();
+		return m_sabreArray[detID].GetNormTilted();
 	}
 }

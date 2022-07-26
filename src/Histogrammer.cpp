@@ -271,14 +271,24 @@ namespace SabreRecon {
 				
 				if(!m_eventPtr->sabre.empty() && m_eventPtr->sabre[0].ringE > s_weakSabreThreshold)
 				{
+					FillHistogram1D({"sabre_counts_gated","sabre_counts_gated;number per event;counts",10,-1.0, 9.0}, m_eventPtr->sabre.size());
 					if(m_eventPtr->sabre[0].detID == 0 || m_eventPtr->sabre[0].detID == 1 || m_eventPtr->sabre[0].detID == 4)
 					{
-						RunDegradedSabre();
+						RunDegradedSabre(m_eventPtr->sabre[0]);
 					}
 					else
 					{
-						RunSabre();
+						RunSabre(m_eventPtr->sabre[0]);
 					}
+					/*
+					if(m_eventPtr->sabre.size() > 1 && m_eventPtr->sabre[1].ringE > s_weakSabreThreshold &&
+					   (m_eventPtr->sabre[1].detID == 0 || m_eventPtr->sabre[1].detID == 1 || m_eventPtr->sabre[1].detID == 4)
+					  )
+					{
+						//Attemp to find some maybe double stuff?
+						RunDegradedSabre(m_eventPtr->sabre[1]);
+					}
+					*/
 				}
 			}	
 		}
@@ -290,19 +300,18 @@ namespace SabreRecon {
 		output->Close();
 	}
 
-	void Histogrammer::RunSabre()
+	void Histogrammer::RunSabre(const SabrePair& pair)
 	{
 		static ReconResult recon5Li, recon7Be, recon8Be, recon14N, recon9B;
 		static TVector3 sabreCoords, b9Coords;
 		static double relAngle;
 
-		auto& biggestSabre = m_eventPtr->sabre[0];
 		recon9B = m_recon.RunFPResidExcitation(m_eventPtr->xavg, m_beamKE, {{5,10},{2,3},{3,4}});
-		recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{2,4}});
-		recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,1}});
-		recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,2}});
-		recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{8,16},{2,3},{2,4},{1,1}});
-		sabreCoords = m_recon.GetSabreCoordinates(biggestSabre);
+		recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{2,4}});
+		recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,1}});
+		recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,2}});
+		recon14N = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{8,16},{2,3},{2,4},{1,1}});
+		sabreCoords = m_recon.GetSabreCoordinates(pair);
 		b9Coords.SetMagThetaPhi(1.0, recon9B.residThetaLab, recon9B.residPhiLab);
 		relAngle = std::acos(b9Coords.Dot(sabreCoords)/(sabreCoords.Mag()*b9Coords.Mag()));
 
@@ -315,10 +324,10 @@ namespace SabreRecon {
 		FillHistogram1D({"ex_8Be", "ex_8Be;E_x(MeV);counts",3000,-5.0,25.0}, recon8Be.excitation);
 		FillHistogram1D({"ex_14N", "ex_14N;E_x(MeV);counts",3000,-20.0,10.0}, recon14N.excitation);
 		FillHistogram2D({"ex_14N_7Be","ex_14N_7Be;E_x 14N;E_x 7Be",500,-10.0,10.0,500,-10.,10.0}, recon14N.excitation, recon7Be.excitation);
-		FillHistogram2D({"sabreTheta_sabreE","sabreTheta_sabreE;#theta (deg); E(MeV)",180,0,180,400,0,20.0},sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
-		FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},m_eventPtr->xavg, biggestSabre.ringE);
+		FillHistogram2D({"sabreTheta_sabreE","sabreTheta_sabreE;#theta (deg); E(MeV)",180,0,180,400,0,20.0},sabreCoords.Theta()*s_rad2deg, pair.ringE);
+		FillHistogram2D({"xavg_sabreE","xavg_sabreE;xavg; E(MeV)",600,-300.0,300.0,400,0,20.0},m_eventPtr->xavg, pair.ringE);
 		FillHistogram2D({"9Btheta_sabreTheta","9Btheta_sabreTheta;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
-		FillHistogram2D({"sabreE_relAngle","sabreE_relAngle;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,biggestSabre.ringE);
+		FillHistogram2D({"sabreE_relAngle","sabreE_relAngle;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,pair.ringE);
 		FillHistogram2D({"sabreTheta_5Liex","sabreTheta_5Liex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-5.0,25.0},sabreCoords.Theta()*s_rad2deg,recon5Li.excitation);
 		FillHistogram2D({"sabreTheta_7Beex","sabreTheta_7Beex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon7Be.excitation);
 		FillHistogram2D({"sabreTheta_14Nex","sabreTheta_14Nex;#theta (deg);E_x (MeV)",180,0.0,180.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon14N.excitation);
@@ -328,8 +337,8 @@ namespace SabreRecon {
 
 		if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0) //nub
 		{
-			FillHistogram2D({"sabreE_sabreTheta_nub","sabreE_sabreTheta_nub;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,biggestSabre.ringE);
-			FillHistogram2D({"sabreE_sabrePhi_nub","sabreE_sabreTheta_nub;#phi (deg);E(MeV)",360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,biggestSabre.ringE);
+			FillHistogram2D({"sabreE_sabreTheta_nub","sabreE_sabreTheta_nub;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,pair.ringE);
+			FillHistogram2D({"sabreE_sabrePhi_nub","sabreE_sabreTheta_nub;#phi (deg);E(MeV)",360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,pair.ringE);
 		}
 		else if(m_eventPtr->xavg > -195.0 && m_eventPtr->xavg < -185.0) //Nabin peak
 		{
@@ -351,13 +360,13 @@ namespace SabreRecon {
 		if(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.15)
 		{
 			FillHistogram1D({"xavg_gated7Begs", "xavg_gated7Begs;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
-			FillHistogram2D({"xavg_sabreE_7Begs","xavg_sabreE_7Begs;xavg;E(MeV)",600,-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
+			FillHistogram2D({"xavg_sabreE_7Begs","xavg_sabreE_7Begs;xavg;E(MeV)",600,-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, pair.ringE);
 			if(!(recon14N.excitation > -0.1 && recon14N.excitation < 2.0))
 				FillHistogram1D({"xavg_gated7Begs_reject14Ngs", "xavg_gated7Begs_reject14Ngs;xavg;counts",600, -300.0, 300.0}, m_eventPtr->xavg);
 			if(m_eventPtr->xavg > -186.0 && m_eventPtr->xavg < -178.0)
 			{
-				FillHistogram2D({"sabreE_sabreTheta_7begs_nub","sabreE_sabreTheta_7begs_nub;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,biggestSabre.ringE);
-				FillHistogram2D({"sabreE_sabrePhi_7begs_nub","sabreE_sabreTheta_7begs_nub;#phi (deg);E(MeV)",360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,biggestSabre.ringE);
+				FillHistogram2D({"sabreE_sabreTheta_7begs_nub","sabreE_sabreTheta_7begs_nub;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0},sabreCoords.Theta()*s_rad2deg,pair.ringE);
+				FillHistogram2D({"sabreE_sabrePhi_7begs_nub","sabreE_sabreTheta_7begs_nub;#phi (deg);E(MeV)",360,0.0,360.0,400,0.0,20.0},Phi360(sabreCoords.Phi())*s_rad2deg,pair.ringE);
 			}
 		}
 		if(recon14N.excitation > -0.1 && recon14N.excitation < 0.2)
@@ -371,50 +380,142 @@ namespace SabreRecon {
 		}
 	}
 
-	void Histogrammer::RunDegradedSabre()
+	void Histogrammer::RunDegradedSabre(const SabrePair& pair)
 	{
-		static ReconResult recon8Be, recon8BePunch, recon9Be, recon9BePunch, recon9B;
-		static TVector3 sabreCoords, b9Coords;
-		static double relAngle;
+		static ReconResult recon8Be, recon8BeDegrade, recon8BePunch, recon9B, recon5Li, recon7Be;
+		static TVector3 sabreCoords, b9Coords, sabreNorm;
+		static double relAngle, incidentAngle;
 
-		auto& biggestSabre = m_eventPtr->sabre[0];
+		FillHistogram1D({"sabre_counts_gated_degraderDets","sabre_counts_gated;number per event;counts",10,-1.0, 9.0}, m_eventPtr->sabre.size());
 
-		recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,1}});
-		recon8BePunch = m_recon.RunSabreExcitationPunchDegraded(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,10},{2,3},{2,4},{1,1}});
-		recon9Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,11},{2,3},{2,4},{1,1}});
-		recon9BePunch = m_recon.RunSabreExcitationPunchDegraded(m_eventPtr->xavg, m_beamKE, biggestSabre, {{5,11},{2,3},{2,4},{1,1}});
+		recon5Li = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{2,4}});
+		recon7Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,2}});
+		recon8Be = m_recon.RunSabreExcitation(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,1}});
+		recon8BeDegrade = m_recon.RunSabreExcitationDegraded(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,1}});
+		recon8BePunch = m_recon.RunSabreExcitationPunchDegraded(m_eventPtr->xavg, m_beamKE, pair, {{5,10},{2,3},{2,4},{1,1}});
 		recon9B = m_recon.RunFPResidExcitation(m_eventPtr->xavg, m_beamKE, {{5,10},{2,3},{3,4}});
-		sabreCoords = m_recon.GetSabreCoordinates(biggestSabre);
+		sabreCoords = m_recon.GetSabreCoordinates(pair);
 		b9Coords.SetMagThetaPhi(1.0, recon9B.residThetaLab, recon9B.residPhiLab);
+		sabreNorm = m_recon.GetSabreNorm(pair.detID);
 		relAngle = std::acos(b9Coords.Dot(sabreCoords)/(sabreCoords.Mag()*b9Coords.Mag()));
+		incidentAngle = std::acos(sabreNorm.Dot(sabreCoords)/(sabreCoords.Mag()*sabreNorm.Mag()));
+		if(incidentAngle > M_PI/2.0)
+			incidentAngle = M_PI - incidentAngle;
 
-		FillHistogram1D({"ex_8be_degraded","ex_8be_degraded; E_x(MeV); counts",3000,-5.0,25.0}, recon8Be.excitation);
-		FillHistogram2D({"xavg_ex8be_degraded","xavg_ex8be_degraded;xavg;E_x(MeV)",600,-300.0,300.0,300,-5.0,25.0}, m_eventPtr->xavg, recon8Be.excitation);
-		FillHistogram1D({"ex_8be_degradedPunched","ex_8be_degradedPunched; E_x(MeV); counts",3000,-15.0,15.0}, recon8BePunch.excitation);
-		FillHistogram2D({"xavg_ex8be_degradedPunched","xavg_ex8be_degradedPunched;xavg;E_x(MeV)",600,-300.0,300.0,300,-15.0,15.0}, m_eventPtr->xavg, recon8BePunch.excitation);
-		FillHistogram1D({"ex_9be_degraded","ex_9be_degraded; E_x(MeV); counts",3000,-5.0,25.0}, recon9Be.excitation);
-		FillHistogram2D({"xavg_ex9be_degraded","xavg_ex9be_degraded;xavg;E_x(MeV)",600,-300.0,300.0,300,-5.0,25.0}, m_eventPtr->xavg, recon9Be.excitation);
-		FillHistogram1D({"ex_9be_degradedPunched","ex_9be_degradedPunched; E_x(MeV); counts",3000,-15.0,15.0}, recon9BePunch.excitation);
-		FillHistogram2D({"xavg_ex9be_degradedPunched","xavg_ex9be_degradedPunched;xavg;E_x(MeV)",600,-300.0,300.0,300,-15.0,15.0}, m_eventPtr->xavg, recon9BePunch.excitation);
+		FillHistogram1D({"incidentAngle","incidentAngle;#theta_inc;counts",180,0.0,180.0}, incidentAngle*s_rad2deg);
+		FillHistogram1D({"ex_5Li_degDets", "ex_5Li;E_x(MeV);counts",3000,-5.0,25.0}, recon5Li.excitation);
+		FillHistogram1D({"ex_7Be_degDets", "ex_5Li;E_x(MeV);counts",3000,-5.0,25.0}, recon7Be.excitation);
+		FillHistogram1D({"ex_8be_degdDets","ex_8be_degDets; E_x(MeV); counts",3000,-5.0,25.0}, recon8Be.excitation);
+		FillHistogram2D({"xavg_ex8be_degDets","xavg_ex8be_degDets;xavg;E_x(MeV)",600,-300.0,300.0,300,-5.0,25.0}, m_eventPtr->xavg, recon8Be.excitation);
+		FillHistogram1D({"ex_8be_degradedPunched","ex_8be_degradedPunched; E_x(MeV); counts",300,-10.0,20.0}, recon8BePunch.excitation);
+		FillHistogram1D({"ex_8be_degradedPunched"+std::to_string(pair.detID),"ex_8be_degradedPunched; E_x(MeV); counts",300,-10.0,20.0}, recon8BePunch.excitation);
+		FillHistogram1D({"ex_8be_degraded","ex_8be_degraded; E_x(MeV); counts",300,-10.0,20.0}, recon8BeDegrade.excitation);
+		FillHistogram1D({"ex_8be_degraded"+std::to_string(pair.detID),"ex_8be_degraded; E_x(MeV); counts",300,-10.0,20.0}, recon8BeDegrade.excitation);
+		if(pair.detID == 0 || pair.detID == 4)
+		{
+			FillHistogram1D({"ex_8be_degradedPunched04","ex_8be_degradedPunched04; E_x(MeV); counts",300,-10.0,20.0}, recon8BePunch.excitation);
+			FillHistogram1D({"ex_8be_degraded04","ex_8be_degraded04; E_x(MeV); counts",300,-10.0,20.0}, recon8BeDegrade.excitation);
+		}
+		FillHistogram2D({"xavg_ex8be_degradedPunched","xavg_ex8be_degradedPunched;xavg;E_x(MeV)",600,-300.0,300.0,300,-10.0,20.0}, m_eventPtr->xavg, recon8BePunch.excitation);
+		FillHistogram2D({"xavg_ex8be_degraded","xavg_ex8be_degraded;xavg;E_x(MeV)",600,-300.0,300.0,300,-10.0,20.0}, m_eventPtr->xavg, recon8BeDegrade.excitation);
+		FillHistogram2D({"sabrePhi_5Liex_degDets","sabrePhi_5Liex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-5.0,25.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon5Li.excitation);
+		FillHistogram2D({"sabreTheta_5Liex_degDets","sabreTheta_5Liex;#theta (deg);E_x (MeV)",360,0.0,360.0,1000,-5.0,25.0},sabreCoords.Theta()*s_rad2deg,recon5Li.excitation);
+		FillHistogram2D({"sabrePhi_8Beex_degDets","sabrePhi_8Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon8Be.excitation);
+		FillHistogram2D({"sabreTheta_8Beex_degDets","sabreTheta_8Beex;#theta (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon8Be.excitation);
+		FillHistogram2D({"sabrePhi_8Beex_degradedPunched","sabrePhi_8Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon8BePunch.excitation);
+		FillHistogram2D({"sabreTheta_8Beex_degradedPunched","sabreTheta_8Beex;#theta (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon8BePunch.excitation);
+		FillHistogram2D({"sabrePhi_8Beex_degraded","sabrePhi_8Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon8BeDegrade.excitation);
+		FillHistogram2D({"sabreTheta_8Beex_degraded","sabreTheta_8Beex;#theta (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},sabreCoords.Theta()*s_rad2deg,recon8BeDegrade.excitation);
 		FillHistogram2D({"relAngle_recovSabreKE_8bePunchRecon","relAngle_recovSabreKe;#theta_{rel}(deg);Recovered KE (MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,recon8BePunch.sabreRxnKE);
-		FillHistogram2D({"relAngle_recovSabreKE_9bePunchRecon","relAngle_recovSabreKe;#theta_{rel}(deg);Recovered KE (MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,recon9BePunch.sabreRxnKE);
+		
+		//Some KE vs. rel angle plots.
+		FillHistogram2D({"relAngle_sabreKE_degDets","relAngle_sabreKE_degDets;#theta_{rel};SABRE E(Mev)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,pair.ringE);
+		FillHistogram2D({"relAngle_sabreKE_degraded","relAngle_sabreKE_degraded;#theta_{rel};SABRE E(Mev)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,recon8BeDegrade.sabreRxnKE);
+		FillHistogram2D({"relAngle_sabreKE_degradedPunched","relAngle_sabreKE_degradedPunched;#theta_{rel};SABRE E(Mev)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg,recon8BePunch.sabreRxnKE);
+
 		if(recon8Be.excitation > 2.2 && recon8Be.excitation < 3.8)
 		{
-			FillHistogram1D({"xavg_gated_8be1ex_degraded", "xavg_gated_8be1ex_degraded;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+			FillHistogram1D({"xavg_gated_8be1ex_degDets", "xavg_gated_8be1ex_degDets;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
+		}
+		if(recon7Be.excitation > -0.1 && recon7Be.excitation < 0.15)
+		{
+			FillHistogram1D({"xavg_gated7Begs_degDets", "xavg_gated7Begs_degDets;xavg;counts",600,-300.0,300.0}, m_eventPtr->xavg);
 		}
 
-		FillHistogram2D({"sabreE_sabreTheta_degraded", "sabreE_sabreTheta_degraded;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
-		FillHistogram2D({"xavg_sabreE_degraded", "xavg_sabreE_degraded;xavg;E(MeV)", 600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
-		FillHistogram2D({"9Btheta_sabreTheta_degraded","9Btheta_sabreTheta_degraded;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
-		FillHistogram2D({"sabreE_relAngle_degraded","sabreE_relAngle_degraded;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg, biggestSabre.ringE);
-		if(biggestSabre.local_wedge != 0 && biggestSabre.local_wedge != 7 && biggestSabre.local_ring != 15 && biggestSabre.local_ring != 0) //Edges might not be degraded right
+		//Need to switch between cases, reject looking at data that has already been reconstructed correctly
+		if(recon8BeDegrade.excitation > -0.5 && recon8BeDegrade.excitation < 0.5)
 		{
-			FillHistogram2D({"sabreE_sabreTheta_degraded_rejectEdge", "sabreE_sabreTheta_degraded;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, biggestSabre.ringE);
-			FillHistogram2D({"xavg_sabreE_degraded_rejectEdge", "xavg_sabreE_degraded;xavg;E(MeV)",600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, biggestSabre.ringE);
-			FillHistogram1D({"xavg_degraded_rejectEdge","xavg_degraded_rejectEdge;xavg",600,-300.0,300.0}, m_eventPtr->xavg);
-			FillHistogram2D({"9Btheta_sabreTheta_degraded_rejectEdge","9Btheta_sabreTheta_degraded_rejectEdge;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg,
+			FillHistogram1D({"xavg_gated_8begs_degraded","xavg_gated_8begs_degraded;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			FillHistogram1D({"xavg_gated_8begs_recoveredSum","xavg_gated_8begs_recoveredSum;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+		}
+		else if(recon8BeDegrade.excitation > 2.0 && recon8BeDegrade.excitation < 4.0)
+		{
+			FillHistogram1D({"xavg_gated_8be1ex_degraded","xavg_gated_8be1ex_degraded;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			FillHistogram1D({"xavg_gated_8be1ex_recoveredSum","xavg_gated_8be1ex_recoveredSum;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+		}
+		else if(recon8BePunch.excitation > -1.0 && recon8BePunch.excitation < 1.0)
+		{
+			FillHistogram1D({"xavg_gated_8begs_degradedPunched","xavg_gated_8begs_degradedPunched;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			FillHistogram1D({"xavg_gated_8begs_recoveredSum","xavg_gated_8begs_recoveredSum;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+		}
+		else if(recon8BePunch.excitation > 1.0 && recon8BePunch.excitation < 5.0)
+		{
+			FillHistogram1D({"xavg_gated_8be1ex_degradedPunched","xavg_gated_8be1ex_degradedPunched;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			FillHistogram1D({"xavg_gated_8be1ex_recoveredSum","xavg_gated_8be1ex_recoveredSum;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			if(pair.detID == 0 || pair.detID == 4)
+			{
+				FillHistogram1D({"xavg_gated_8be1ex_degradedPunched_04","xavg_gated_8be1ex_degradedPunched_04;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			}
+			if(pair.local_wedge != 0 && pair.local_wedge != 7 && pair.local_ring != 15 && pair.local_ring != 0) //Edges might not be degraded right
+			{
+				FillHistogram1D({"xavg_gated_8be1ex_degradedPunched_rejectEdge","xavg_gated_8be1ex_degradedPunched_rejectEdge;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+				FillHistogram1D({"xavg_gated_8be1ex_recoveredSum_rejectEdge","xavg_gated_8be1ex_recoveredSum_rejectEdge;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+				if(pair.detID == 0 || pair.detID == 4)
+					FillHistogram1D({"xavg_gated_8be1ex_degradedPunched_rejectEdge_04","xavg_gated_8be1ex_degradedPunched_rejectEdge_04;xavg;counts",600,-300,300}, m_eventPtr->xavg);
+			}
+		}
+		if(!(recon8BeDegrade.excitation > -1.0 && recon8BeDegrade.excitation < 4.0))
+		{
+			FillHistogram1D({"ex_8be_degradedPunched_rejectPrev","ex_8be_degradedPunched_rejectPrev;E_x(MeV);counts",300,-10.0,20.0}, recon8BePunch.excitation);
+			FillHistogram2D({"sabrePhi_8Beex_degradedPunched_rejectPrev","sabrePhi_8Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon8BePunch.excitation);
+			FillHistogram2D({"xavg_ex8be_degradedPunched_rejectPrev","xavg_ex8be_degradedPunched;xavg;E_x(MeV)",600,-300.0,300.0,300,-10.0,20.0}, m_eventPtr->xavg, recon8BePunch.excitation);
+			if(recon8BePunch.excitation > -1.0 && recon8BePunch.excitation < 5.0)
+				FillHistogram1D({"xavg_gated_8beex_low_degradedPunched","xavg_gated_8beex_low_degradedPunched;xavg;counts",600,-300.0,300.0},m_eventPtr->xavg);
+			if(pair.detID == 0 || pair.detID == 4)
+			{
+				FillHistogram1D({"ex_8be_degradedPunched04_rejectPrev","ex_8be_degradedPunched04_rejectPrev; E_x(MeV); counts",300,-10.0,20.0}, recon8BePunch.excitation);
+				FillHistogram1D({"ex_8be_degraded04_rejectPrev","ex_8be_degraded04_rejectPrev; E_x(MeV); counts",300,-10.0,20.0}, recon8BeDegrade.excitation);
+			}
+		}
+		else
+		{
+			FillHistogram1D({"xavg_gated_8beex_low_degraded","xavg_gated_8beex_low_degraded;xavg;counts",600,-300.0,300.0},m_eventPtr->xavg);
+		}
+
+		FillHistogram2D({"sabreE_sabreTheta_degDets", "sabreE_sabreTheta_degDets;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, pair.ringE);
+		FillHistogram2D({"xavg_sabreE_degDets", "xavg_sabreE_degDets;xavg;E(MeV)", 600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, pair.ringE);
+		FillHistogram2D({"9Btheta_sabreTheta_degDets","9Btheta_sabreTheta_degDets;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg, sabreCoords.Theta()*s_rad2deg);
+		FillHistogram2D({"sabreE_relAngle_degDets","sabreE_relAngle_degDets;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg, pair.ringE);
+		if(pair.local_wedge != 0 && pair.local_wedge != 7 && pair.local_ring != 15 && pair.local_ring != 0) //Edges might not be degraded right
+		{
+			FillHistogram2D({"sabreE_sabreTheta_degDets_rejectEdge", "sabreE_sabreTheta_degDets;#theta (deg);E(MeV)",180,0.0,180.0,400,0.0,20.0}, sabreCoords.Theta()*s_rad2deg, pair.ringE);
+			FillHistogram2D({"xavg_sabreE_degDets_rejectEdge", "xavg_sabreE_degDets;xavg;E(MeV)",600,0.-300.0,300.0,400,0.0,20.0}, m_eventPtr->xavg, pair.ringE);
+			FillHistogram1D({"xavg_degDets_rejectEdge","xavg_degDets_rejectEdge;xavg",600,-300.0,300.0}, m_eventPtr->xavg);
+			FillHistogram2D({"9Btheta_sabreTheta_degDets_rejectEdge","9Btheta_sabreTheta_degDets_rejectEdge;#theta_{9B};#theta_{SABRE}",180,0.0,180.0,180,0.0,180.0}, recon9B.residThetaLab*s_rad2deg,
 							  sabreCoords.Theta()*s_rad2deg);
-			FillHistogram2D({"sabreE_relAngle_degraded_rejectEdge","sabreE_relAngle_degraded_rejectEdge;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg, biggestSabre.ringE);
+			FillHistogram2D({"sabreE_relAngle_degDets_rejectEdge","sabreE_relAngle_degDets_rejectEdge;#theta_{rel};E(MeV)",180,0.0,180.0,400,0.0,20.0},relAngle*s_rad2deg, pair.ringE);
+			if(!(recon8BeDegrade.excitation > -1.0 && recon8BeDegrade.excitation < 5.0))
+			{
+				FillHistogram1D({"ex_8be_degradedPunched_rejectPrev_rejectEdge","ex_8be_degradedPunched_rejectPrev;E_x(MeV);counts",300,-10.0,20.0}, recon8BePunch.excitation);
+				FillHistogram2D({"sabrePhi_8Beex_degradedPunched_rejectPrev_rejectEdge","sabrePhi_8Beex;#phi (deg);E_x (MeV)",360,0.0,360.0,1000,-20.0,10.0},Phi360(sabreCoords.Phi())*s_rad2deg,recon8BePunch.excitation);
+				FillHistogram2D({"xavg_ex8be_degradedPunched_rejectPrev_rejectEdge","xavg_ex8be_degradedPunched;xavg;E_x(MeV)",600,-300.0,300.0,300,-10.0,20.0}, m_eventPtr->xavg, recon8BePunch.excitation);
+				if(recon8BePunch.excitation > -1.0 && recon8BePunch.excitation < 5.0)
+					FillHistogram1D({"xavg_gated_8beex_low_degradedPunched_rejectEdge","xavg_gated_8beex_low_degradedPunched;xavg;counts",600,-300.0,300.0},m_eventPtr->xavg);
+			}
+			else
+			{
+				FillHistogram1D({"xavg_gated_8beex_low_degraded_rejectEdge","xavg_gated_8beex_low_degraded;xavg;counts",600,-300.0,300.0},m_eventPtr->xavg);
+			}
 		}
 	}
 }

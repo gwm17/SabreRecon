@@ -65,15 +65,17 @@ namespace SabreRecon {
 
 		ReconResult RunSabreExcitationPunch(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei);
 		ReconResult RunSabreExcitationPunchDegraded(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei);
+		ReconResult RunSabreExcitationDegraded(double xavg, double beamKE, const SabrePair& sabre, const std::vector<NucID>& nuclei);
 
 		TVector3 GetSabreCoordinates(const SabrePair& pair);
+		TVector3 GetSabreNorm(int detID);
     	
-
 	private:
 		TLorentzVector GetSabre4Vector(const SabrePair& pair, double mass);
     	TLorentzVector GetSabre4VectorEloss(const SabrePair& pair, double mass, const NucID& id);
     	TLorentzVector GetSabre4VectorElossPunchThru(const SabrePair& pair, double mass, const NucID& id);
     	TLorentzVector GetSabre4VectorElossPunchThruDegraded(const SabrePair& pair, double mass, const NucID& id);
+		TLorentzVector GetSabre4VectorElossDegraded(const SabrePair& pair, double mass, const NucID& id);
     	TLorentzVector GetFP4VectorEloss(double xavg, double mass, const NucID& id);
     	TLorentzVector GetProj4VectorEloss(double beamKE, double mass, const NucID& id);
 
@@ -90,8 +92,8 @@ namespace SabreRecon {
 
     	//SABRE constants
     	static constexpr double s_phiDet[5] = { 306.0, 18.0, 234.0, 162.0, 90.0 };
-    	//static constexpr double s_tiltAngle = 40.0;
-    	static constexpr double s_tiltAngle = 38.0;
+    	static constexpr double s_tiltAngle = 40.0;
+    	//static constexpr double s_tiltAngle = 55.0;
     	static constexpr double s_zOffset = -0.1245; //Erin's SABRE code
     	//static constexpr double s_zOffset = -0.1142; //From Ken's diagram
 		//static constexpr double s_zOffset = -0.1367; //Ken's diagram plus extra shift for our geometry

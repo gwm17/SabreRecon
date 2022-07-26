@@ -95,7 +95,7 @@ namespace SabreRecon {
 		inline const int GetDetectorID() const { return m_detectorID; }
 	
 		/*Basic getters*/
-		inline TVector3 GetNormTilted() { return TransformToTiltedFrame(m_norm_flat); }
+		inline TVector3 GetNormTilted() { return m_ZRot * m_YRot * m_norm_flat; }
 	
 	
 	private:
